@@ -1,0 +1,7 @@
+# build.sh / bundle.py / package.sh 的产物与缓存
+/payload/tools.zip
+/out/
+/build/
+/dist/
+/.cache/
+__pycache__/

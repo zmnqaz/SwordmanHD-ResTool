@@ -1,0 +1,2 @@
+来源: 游戏仓库 SwordmanHD 提交 26c21f3
+由 pipeline/sync_upstream.py 同步 (原样复制, 不要手改; 要改去游戏仓库改再同步)。

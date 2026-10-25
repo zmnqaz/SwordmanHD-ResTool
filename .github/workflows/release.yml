@@ -1,0 +1,157 @@
+# 全平台出发布包, 全程在 GitHub 的机器上做, 不用在自己电脑上编译或打包:
+#   package  程序 (Go 纯标准库, 交叉编译) + 随包运行环境 (便携 Python + 依赖库 + ffmpeg) → 压缩包 (Windows / Linux / macOS×2)
+#   smoke    在真实的 Windows / Linux / macOS 机器上把刚打的包解压、运行: 启动器 → 展开内置流水线 → 随包 Python → 窗口能打开,
+#            再检查依赖库、ffmpeg 编码器、流水线脚本、pck 写入器
+#   release  都通过后建 GitHub Release, 附上全部压缩包
+#
+# 怎么触发 (任选一种):
+#   1. 网页: 仓库 Actions → release → Run workflow; 在 "发布版本号" 填 v1.0 之类 = 出包并发布 Release; 留空 = 只出包 (在这次运行页面底部下载)
+#   2. 命令行: git tag v1.0 && git push origin v1.0        (推送 v 开头的标签 = 出包并发布 Release)
+#   3. gh 命令: gh workflow run release.yml -f release_tag=v1.0
+#
+# 内嵌的提取脚本在本仓库 upstream/ (从游戏仓库同步来的: python3 pipeline/sync_upstream.py <游戏仓库目录>), 不需要再去取别的仓库。
+# 本机编译 (一般不用): ./build.sh <平台> → python3 bundle/bundle.py --platform <平台> --out build/<平台> → ./package.sh <平台>; 需要 Go 1.22+ 和 Python 3.10+。
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "发布版本号 (如 v1.0); 留空 = 只出包不发布"
+        required: false
+        default: ""
+  push:
+    tags: ["v*"]
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [win64, linux-x64, macos-arm64, macos-x64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: bundle-${{ matrix.platform }}-${{ hashFiles('bundle/bundle.py', 'bundle/pins.json', 'bundle/requirements.txt') }}
+      - name: 编译启动器 (含单元测试)
+        run: |
+          ./build.sh ${{ matrix.platform }}
+          go vet ./... && go test ./...
+          python3 tests/test_pck_writer.py
+          python3 tests/test_gui_core.py
+      - name: 组装运行环境
+        run: python3 bundle/bundle.py --platform ${{ matrix.platform }} --out build/${{ matrix.platform }}
+      - name: 打包
+        run: ./package.sh ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: restool-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  smoke:
+    # 在目标系统上真的跑一遍包, 这是不用 Windows / Mac 机器也能放心的关键
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: win64, os: windows-latest}
+          - {platform: linux-x64, os: ubuntu-latest}
+          - {platform: macos-arm64, os: macos-latest}
+          - {platform: macos-x64, os: macos-15-intel}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.platform == 'macos-x64' }}   # Intel Mac 的机器可能排不到队, 不拖住发布
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: restool-${{ matrix.platform }}
+          path: dl
+      - name: 解压 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Expand-Archive -Path dl/SwordmanHD-ResTool-win64.zip -DestinationPath app
+      - name: 解压 (Linux / macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir app
+          if [ -f dl/*.tar.gz ]; then tar xzf dl/*.tar.gz -C app; else unzip -q dl/*.zip -d app; fi
+          chmod +x app/*/SwordmanHD-ResTool
+      - name: Linux 需要虚拟屏幕
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+      - name: 启动器自检 (展开内置流水线 → 随包 Python → 窗口打开并关闭)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "app\SwordmanHD-ResTool\SwordmanHD-ResTool.exe" -ArgumentList "--selftest" -Wait -PassThru
+          $log = "app\SwordmanHD-ResTool\restool-data\restool.log"
+          if (Test-Path $log) { Get-Content $log }
+          if ($p.ExitCode -ne 0) { throw "启动器退出码 $($p.ExitCode)" }
+          if (-not (Select-String -Path $log -Pattern "GUI OK" -Quiet)) { throw "日志里没有 GUI OK: 窗口没有正常打开" }
+      - name: 启动器自检 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd app/SwordmanHD-ResTool
+          xvfb-run -a ./SwordmanHD-ResTool --selftest
+          cat restool-data/restool.log
+          grep -q "GUI OK" restool-data/restool.log
+      - name: 启动器自检 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd app/SwordmanHD-ResTool
+          xattr -dr com.apple.quarantine . || true
+          ./SwordmanHD-ResTool --selftest
+          cat restool-data/restool.log
+          grep -q "GUI OK" restool-data/restool.log
+      - name: 运行环境检查 (依赖库 / ffmpeg 编码器 / 流水线脚本 / pck 写入)
+        shell: bash
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          cd app/SwordmanHD-ResTool
+          if [ "$RUNNER_OS" = Windows ]; then PY=runtime/python/python.exe; else PY=runtime/python/bin/python3; fi
+          export PATH="$PWD/runtime/ffmpeg:$PATH"
+          NOTK=""; [ "$RUNNER_OS" = Linux ] && NOTK="--no-tk"   # Linux 的窗口已在上一步用 xvfb 检查过
+          "$PY" "$GITHUB_WORKSPACE/tests/smoke_runtime.py" --runtime runtime --data restool-data $NOTK
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+    needs: [package, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: 建 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          cat > notes.md <<'EOF2'
+          下载你系统的压缩包, **解压后直接运行, 不用安装任何东西**; 选原版游戏文件夹, 点「开始生成」, 就得到 SwordmanHD 的资源包。
+          本工具不含《天地劫》的任何资源, 只在你自己的电脑上处理你自己的原版。
+
+          | 系统 | 下载 | 运行 |
+          |---|---|---|
+          | Windows | `SwordmanHD-ResTool-win64.zip` | 解压, 双击 `SwordmanHD-ResTool.exe` (提示「已保护你的电脑」点「更多信息 → 仍要运行」) |
+          | macOS | `…-macos-arm64.zip` (Apple 芯片) / `…-macos-x64.zip` (Intel) | 解压, 终端里 `xattr -dr com.apple.quarantine .` 后 `./SwordmanHD-ResTool` |
+          | Linux | `…-linux-x64.tar.gz` | 解压, `./SwordmanHD-ResTool` |
+          EOF2
+          gh release create "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "资源获取器 $TAG" --notes-file notes.md

@@ -1,0 +1,49 @@
+{
+ "_说明": "已知可用的原版版本: 只存关键数据文件的大小与 sha256 (不含任何原版内容)。tools/build_assets.py 预检时用它识别玩家的原版; 对不上则警告, export 阶段需 --allow-unknown-version。加新版本: python3 tools/build_assets.py --fingerprint <原版目录> 取哈希。",
+ "versions": [
+  {
+   "id": "v1.3",
+   "note": "项目约定的官方 1.3 (README: 以官方 v1.3 验证); 哈希取自开发机原版安装目录 (2004-04-24 的 Swordman.exe 与 Misc 数据文件), 与导出的原图目录 Misc/ 逐字节相同",
+   "files": {
+    "Misc/Item_dat.dat": {
+     "size": 68068,
+     "sha256": "8acecc71b821af1e18ef13e97ec119a33af806f9dca97660e8a4dbd304d5802a"
+    },
+    "Misc/KMAN_STA.DAT": {
+     "size": 800,
+     "sha256": "394955fa0b508c8da7e239e4e8d7f7955eaad8bdee03168bc28908059458c7a3"
+    },
+    "Misc/KMAN_LEV.DAT": {
+     "size": 1674,
+     "sha256": "d3724c6749313e1d93edee1f1229a0e82bf12a7e888c3ecdb19764580954b291"
+    },
+    "Misc/Mag_dat.DAT": {
+     "size": 15264,
+     "sha256": "d5b004cdcf628528b8c143e3d95712329d96120e5b40fed0449038b0353f4218"
+    },
+    "Misc/Man_base.dat": {
+     "size": 6728,
+     "sha256": "ccba6d99a92b922d547ec94878de76cad8d17da31fb10d06d0d1a72d5cf6a029"
+    },
+    "Misc/MAG_OPP.DAT": {
+     "size": 546,
+     "sha256": "6d9f63132195bf5079ce3051936001bd474c216fcaaa7826839422c86908985c"
+    },
+    "Misc/STA_SCR.DAT": {
+     "size": 936,
+     "sha256": "72533d83e47f11aee055d7706981d74ed355a484ce64aaa923dc79c23c67c52b"
+    },
+    "Misc/TER_EFF.DAT": {
+     "size": 384,
+     "sha256": "2025347d383054a29a2cf5429d81e980c43fe88932ac050a27f2fdd7c8baea76"
+    }
+   },
+   "exe_sha256": [
+    "3285af71047fb5f89488733f4f7a2eac13e4b4e2f2a887fca2cf7a8224cb8d2c",
+    "a9935a98a5dbbe4b0f1dfd7b9f4f82f9c58e1d32ca63711bd7a19fa6893d8397"
+   ],
+   "exe_note": "第二个是项目里的 Swordman_v13_clean.exe (去 CD 检查的干净版, 同样大小); exe 不影响数据解析, 只作参考",
+   "stage_dirs": 36
+  }
+ ]
+}

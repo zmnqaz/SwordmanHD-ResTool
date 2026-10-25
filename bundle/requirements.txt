@@ -1,0 +1,6 @@
+# 随包运行环境里要装的 Python 依赖 (提取 + 打包 + 窗口界面; 不含 AI 放大要用的 opencv)
+pillow
+numpy
+fonttools
+opencc-python-reimplemented
+customtkinter
