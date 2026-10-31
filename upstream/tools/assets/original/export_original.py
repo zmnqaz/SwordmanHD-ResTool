@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -87,6 +88,14 @@ def job_movie(src, dst):
     return ("movie", dst, 0, 0, 0)
 
 
+def copy_plain(src, dst):
+    """原样复制。copy2 会连只读属性一起复制 (光盘/模拟器目录里的文件常是只读), 重跑时覆盖只读的旧副本会 PermissionError, 所以先解除目标只读、复制后也保持可写。"""
+    if os.path.exists(dst):
+        os.chmod(dst, os.stat(dst).st_mode | stat.S_IWUSR)
+    shutil.copy2(src, dst)
+    os.chmod(dst, os.stat(dst).st_mode | stat.S_IWUSR)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--game", required=True, help="原版游戏目录")
@@ -118,7 +127,7 @@ def main():
                 else:
                     dst = os.path.join(args.out, rel)
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
-                    shutil.copy2(src, dst)
+                    copy_plain(src, dst)
                     copied += 1
 
     print(f"任务 {len(jobs)}, 原样复制 {copied}", flush=True)
