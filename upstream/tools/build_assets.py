@@ -18,9 +18,9 @@
   data     原图目录 -> data/*.json (tools/assets/parse_data.py 数值表, tools/assets/export_text.py 对白)
   content  data/ + 原图目录 -> game/content/tdj/ (decompile_events.py 剧情脚本, import_content.py 数据/关卡/城镇,
            make_locale.py / make_hant_text.py 繁体叠加层 locale/hant (简体/繁体切换, docs/设计_繁简切换.md),
-           texture_classes.py 贴图分类表 textures.json; 整个目录都是生成的, 项目手写的界面/演出配置在 game/content/remake)
+           texture_classes.py 贴图分类表 textures.json, make_tfont.py 原版点阵字体 ui_theme/tfont.ttf; 整个目录都是生成的, 项目手写的界面/演出配置在 game/content/remake)
   hd       原图目录 -> hd4x/ (tools/assets/hd_pipeline.py: AI 放大头像/地图/发光/大图, 目录 hd4x.json; 需要 Vulkan 显卡;
-           已完成的跳过, 可断点续跑; 可选, --no-ai 跳过)
+           已完成的跳过, 可断点续跑; 可选, --no-ai 跳过); 随后 fix_title_text.py 把标题「神魔至尊傳」字带换成像素画放大 (AI 放大会把小字糊掉)
   movie    原图目录的 mp4 -> game/classic/movies/*.ogv (tools/assets/make_godot_movies.py, 原版 320x200)
   hdmovie  原版 Bink 过场 -> hd4x/<同路径>.ogv (tools/assets/movie_hd.py: animevideov3 4 倍 1280x800, 约 0.5GB / 40 分钟;
            需要 Vulkan 显卡; 已完成的跳过; 可选, --no-ai 跳过; 游戏有高清版就优先播放)
@@ -176,7 +176,7 @@ def identify_version(fp):
 STAGE_NEEDS = {
     "export": {"py": ["PIL", "numpy"], "ffmpeg": ["libx264"], "gb": 3},
     "data": {"gb": 0.2},
-    "content": {"py": ["PIL"], "gb": 0.2},
+    "content": {"py": ["PIL", "fontTools"], "gb": 0.2},   # fontTools: make_tfont.py 生成原版点阵字体
     "hd": {"py": ["PIL", "numpy", "cv2"], "esrgan": True, "gb": 3},
     "movie": {"ffmpeg": ["libtheora", "libvorbis"], "gb": 1},
     "hdmovie": {"ffmpeg": ["libtheora", "libvorbis"], "esrgan": True, "gb": 8},
@@ -220,7 +220,7 @@ def preflight(a, todo):
         try:
             __import__(mod)
         except ImportError:
-            errs.append("缺 Python 包 %s: pip install -r tools/requirements-dev.txt (Pillow、numpy、opencv)" % {"PIL": "Pillow", "cv2": "opencv-python-headless"}.get(mod, mod))
+            errs.append("缺 Python 包 %s: pip install -r tools/requirements-dev.txt (Pillow、numpy、opencv)" % {"PIL": "Pillow", "cv2": "opencv-python-headless", "fontTools": "fonttools"}.get(mod, mod))
     if need["ffmpeg"] or "export" in todo:
         enc = ffmpeg_encoders()
         if enc is None:
@@ -531,10 +531,12 @@ def stage_content(a, env):
     py("assets/make_locale.py", env=env)       # 繁体叠加层 game/content/tdj/locale/hant (原版 Big5 原文与简体逐字段比对)
     py("assets/make_hant_text.py", env=env)    # 手写文字 (界面文案/枚举显示名) 转繁体叠加层
     py("assets/texture_classes.py", env=env)
+    py("assets/make_tfont.py", "--src", a.original, env=env)   # 原版点阵字库 Misc/Tfont.dat -> ui_theme/tfont.ttf + fonts.json (设定里的「原版点阵」)
 
 
 def stage_hd(a, env):
     py("assets/hd_pipeline.py", "--src", a.original, "--out", paths.hd4x_dir(), env=env)
+    py("assets/fix_title_text.py", "--src", a.original, "--out", paths.hd4x_dir(), env=env)   # 标题「神魔至尊傳」字带: AI 放大会糊, 改用像素画放大拼回
 
 
 def stage_movie(a, env):
