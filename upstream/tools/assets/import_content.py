@@ -424,7 +424,24 @@ def build_camps(orig, warn):
         # 营地背景走通用场景演出 SceneShow: 整段循环, 进出营地的黑场由场景切换 (Game.goto_camp) 负责
         rec["background_show"] = {"anim": rec["background_anim"], "loop": [0, -1]} if rec["background_anim"] else None
         out.append(rec)
+    _fill_missing_camp_backgrounds(out)
     return out
+
+
+def _fill_missing_camp_backgrounds(camps):
+    """原版没有 CAMPnn.DAT 的营地号 (v1.3 只缺 CAMP32) 底图沿用后面最近一个有 DAT 且有底图的营地 (D415)。
+    原版剧情不会送到这些营地号 (第 31 幕 = 第 32 关结束送 CAMP33, 没有 CAMP32); 原版真读到时 0x404340 记
+    「Can't open file」营地初始化失败。以前缺省用图号 0 = 第 0 幕营地 Camp00 (底图只有殷剑平与桌案, 其余全黑),
+    存档/工具进度值落到这里就整屏黑。按原版剧情实际的去向取后面的营地 [自定]; background/town 字段仍是原版缺省值 (解析对拍不变)。"""
+    for i, rec in enumerate(camps):
+        if "_note" not in rec or not str(rec["_note"]).startswith("原版无 Camp/Script/"):
+            continue
+        nxt = [c for c in camps[i + 1:] if "_note" not in c and c["background_anim"]] or \
+              [c for c in reversed(camps[:i]) if "_note" not in c and c["background_anim"]]
+        if nxt:
+            rec["background_anim"] = nxt[0]["background_anim"]
+            rec["background_show"] = dict(nxt[0]["background_show"])
+            rec["_note"] += ", 底图沿用营地 %d (D415)" % nxt[0]["stage"]
 
 
 # ---------------------------------------------------------------- 输出

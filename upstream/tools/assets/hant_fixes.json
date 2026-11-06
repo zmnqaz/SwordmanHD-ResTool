@@ -1,5 +1,5 @@
 {
- "_comment": "手写文字转繁体的人工校对表 (tools/assets/make_hant_text.py)。exact: 简体整句 -> 繁体整句 (优先); replace: OpenCC 转换后的片段 -> 改成的片段。",
+ "_comment": "手写文字转繁体的人工校对表 (tools/assets/make_hant_text.py)。exact: 简体整句 -> 繁体整句 (优先); replace: OpenCC 转换后的片段 -> 改成的片段。 replace 里的「刪除 -> 清除」: 繁体像素字体 (fusion_pixel.json) 没收「刪」字, 字形源不在手边, 换成同义词。",
  "exact": {
   "简体中文": "简体中文",
   "繁體中文": "繁體中文",
@@ -28,5 +28,7 @@
   "中毒的状态解除了.": "中毒的狀態解除了.",
   "冰结的状态解除了.": "冰結的狀態解除了."
  },
- "replace": {}
+ "replace": {
+  "刪除": "清除"
+ }
 }
